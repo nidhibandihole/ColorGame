@@ -1,0 +1,222 @@
+// Source code is decompiled from a .class file using FernFlower decompiler.
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Font;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import javax.swing.BorderFactory;
+import javax.swing.Icon;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+
+public class ColorGame extends JFrame {
+   private static final ArrayList<String> COLORS = new ArrayList();
+   private static int score = 0;
+   private static int timeLeft = 30;
+   private JLabel label;
+   private JLabel scoreLabel;
+   private JLabel timeLabel;
+   private JTextField inputField;
+   private Timer timer;
+
+   public ColorGame() {
+      COLORS.add("Red");
+      COLORS.add("Blue");
+      COLORS.add("Green");
+      COLORS.add("Yellow");
+      COLORS.add("Orange");
+      COLORS.add("Purple");
+      COLORS.add("Pink");
+      COLORS.add("Black");
+      this.setTitle("Color Game");
+      this.setSize(400, 350);
+      this.setDefaultCloseOperation(3);
+      this.setLayout(new BorderLayout());
+      this.setResizable(false);
+      this.timeLabel = new JLabel("Time left: " + timeLeft, 0);
+      this.timeLabel.setFont(new Font("Helvetica", 1, 24));
+      this.timeLabel.setOpaque(true);
+      this.timeLabel.setBackground(Color.LIGHT_GRAY);
+      this.timeLabel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+      this.add(this.timeLabel, "North");
+      this.label = new JLabel("", 0);
+      this.label.setFont(new Font("Helvetica", 1, 48));
+      this.add(this.label, "Center");
+      this.scoreLabel = new JLabel("Score: " + score, 0);
+      this.scoreLabel.setFont(new Font("Helvetica", 0, 16));
+      this.add(this.scoreLabel, "South");
+      this.inputField = new JTextField();
+      this.inputField.setFont(new Font("Helvetica", 0, 16));
+      this.inputField.setHorizontalAlignment(0);
+      this.inputField.addActionListener((var1) -> {
+         this.checkInput();
+      });
+      this.add(this.inputField, "South");
+      this.shuffleColors();
+      this.updateColor();
+      this.startTimer();
+   }
+
+   private void shuffleColors() {
+      Collections.shuffle(COLORS);
+   }
+
+   private void updateColor() {
+      this.label.setForeground(Color.decode(this.getColorHex((String)COLORS.get(1))));
+      this.label.setText((String)COLORS.get(0));
+   }
+
+   private void checkInput() {
+      if (timeLeft > 0) {
+         String var1 = this.inputField.getText().trim().toLowerCase();
+         String var2 = ((String)COLORS.get(1)).toLowerCase();
+         if (var1.equals(var2)) {
+            ++score;
+            this.scoreLabel.setText("Score: " + score);
+            this.inputField.setText("");
+            this.shuffleColors();
+            this.updateColor();
+         } else {
+            this.timer.stop();
+            this.showGameOverDialog("Wrong input! Game Over!");
+         }
+      }
+
+   }
+
+   private void startTimer() {
+      this.timer = new Timer(1000, (var1) -> {
+         if (timeLeft > 0) {
+            --timeLeft;
+            this.timeLabel.setText("Time left: " + timeLeft);
+         } else {
+            this.timer.stop();
+            this.showGameOverDialog("Time's up! Game Over!");
+         }
+
+      });
+      this.timer.start();
+   }
+
+   private void showGameOverDialog(String var1) {
+      this.recordHighScore();
+      int var2 = this.loadHighScore();
+      int var3 = JOptionPane.showOptionDialog(this, var1 + "\nYour Score: " + score + "\nHighest Score: " + var2 + "\nDo you want to play again?", "Game Over", 0, 3, (Icon)null, new String[]{"Restart", "Exit"}, "Restart");
+      if (var3 == 0) {
+         this.restartGame();
+      } else {
+         System.exit(0);
+      }
+
+   }
+
+   private void restartGame() {
+      score = 0;
+      timeLeft = 30;
+      this.scoreLabel.setText("Score: 0");
+      this.timeLabel.setText("Time left: 30");
+      this.inputField.setText("");
+      this.shuffleColors();
+      this.updateColor();
+      this.startTimer();
+   }
+
+   private void recordHighScore() {
+      int var1 = this.loadHighScore();
+      if (score > var1) {
+         try {
+            BufferedWriter var2 = new BufferedWriter(new FileWriter("highest_score.txt"));
+
+            try {
+               var2.write(String.valueOf(score));
+            } catch (Throwable var6) {
+               try {
+                  var2.close();
+               } catch (Throwable var5) {
+                  var6.addSuppressed(var5);
+               }
+
+               throw var6;
+            }
+
+            var2.close();
+         } catch (IOException var7) {
+            var7.printStackTrace();
+         }
+      }
+
+   }
+
+   private int loadHighScore() {
+      try {
+         BufferedReader var1 = new BufferedReader(new FileReader("highest_score.txt"));
+
+         label33: {
+            int var3;
+            try {
+               String var2 = var1.readLine();
+               if (var2 == null || var2.isEmpty()) {
+                  break label33;
+               }
+
+               var3 = Integer.parseInt(var2);
+            } catch (Throwable var5) {
+               try {
+                  var1.close();
+               } catch (Throwable var4) {
+                  var5.addSuppressed(var4);
+               }
+
+               throw var5;
+            }
+
+            var1.close();
+            return var3;
+         }
+
+         var1.close();
+      } catch (NumberFormatException | IOException var6) {
+      }
+
+      return 0;
+   }
+
+   private String getColorHex(String var1) {
+      switch (var1.toLowerCase()) {
+         case "red":
+            return "#FF0000";
+         case "blue":
+            return "#0000FF";
+         case "green":
+            return "#008000";
+         case "yellow":
+            return "#FFFF00";
+         case "orange":
+            return "#FFA500";
+         case "purple":
+            return "#800080";
+         case "pink":
+            return "#FFC0CB";
+         case "black":
+            return "#000000";
+         default:
+            return "#000000";
+      }
+   }
+
+   public static void main(String[] var0) {
+      SwingUtilities.invokeLater(() -> {
+         ColorGame var0 = new ColorGame();
+         var0.setVisible(true);
+      });
+   }
+}
