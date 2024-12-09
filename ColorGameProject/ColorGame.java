@@ -1,4 +1,4 @@
-package colorgame;
+
 import java.awt.*;
 import java.io.*;
 import java.sql.*;
@@ -20,7 +20,7 @@ public class ColorGame extends JFrame {
     // MySQL Database credentials
     private static final String DB_URL = "jdbc:mysql://localhost:3306/colorgame_db";
     private static final String DB_USER = "root";
-    private static final String DB_PASSWORD = "Kittu@123";
+    private static final String DB_PASSWORD = "root";
 
     public ColorGame() {
         // Initialize the colors
