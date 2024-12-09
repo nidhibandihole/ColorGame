@@ -1,25 +1,14 @@
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Font;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+package colorgame;
+import java.awt.*;
+import java.io.*;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.Collections;
-import javax.swing.BorderFactory;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
-import javax.swing.Timer;
+import javax.swing.*;
 
 @SuppressWarnings("serial")
 public class ColorGame extends JFrame {
-    private static final ArrayList<String> COLORS = new ArrayList<>(); // The colors are stored in an ArrayList
+    private static final ArrayList<String> COLORS = new ArrayList<>();
     private static int score = 0;
     private static int timeLeft = 30;
     private JLabel label;
@@ -27,6 +16,11 @@ public class ColorGame extends JFrame {
     private JLabel timeLabel;
     private JTextField inputField;
     private Timer timer;
+
+    // MySQL Database credentials
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/colorgame_db";
+    private static final String DB_USER = "root";
+    private static final String DB_PASSWORD = "Kittu@123";
 
     public ColorGame() {
         // Initialize the colors
@@ -41,7 +35,7 @@ public class ColorGame extends JFrame {
 
         // Set up the main game window
         setTitle("Color Game");
-        setSize(400, 400); // Adjusted size for better layout
+        setSize(400, 400);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
         setResizable(false);
@@ -93,12 +87,12 @@ public class ColorGame extends JFrame {
     }
 
     private void shuffleColors() {
-        Collections.shuffle(COLORS); // Shuffle is a method in Collections class
+        Collections.shuffle(COLORS);
     }
 
     private void updateColor() {
-        label.setForeground(Color.decode(getColorHex(COLORS.get(1)))); // The actual color of the text is the 2nd element
-        label.setText(COLORS.get(0)); // The word displayed is the 1st element
+        label.setForeground(Color.decode(getColorHex(COLORS.get(1))));
+        label.setText(COLORS.get(0));
     }
 
     private void checkInput() {
@@ -109,18 +103,19 @@ public class ColorGame extends JFrame {
             if (userInput.equals(correctColor)) {
                 score++;
                 scoreLabel.setText("Score: " + score);
-                inputField.setText(""); // Clearing text for next 
+                inputField.setText("");
                 shuffleColors();
                 updateColor();
+                updateColorStats(COLORS.get(1), true);
             } else {
-                // End the game immediately on wrong input
                 timer.stop();
+                updateColorStats(COLORS.get(1), false);
                 showGameOverDialog("Wrong input! Game Over!");
             }
         }
     }
 
-    private void startTimer() { // Timer is a method in javax.swing.Timer class
+    private void startTimer() {
         timer = new Timer(1000, e -> {
             if (timeLeft > 0) {
                 timeLeft--;
@@ -134,7 +129,7 @@ public class ColorGame extends JFrame {
     }
 
     private void showGameOverDialog(String message) {
-        recordHighScore();
+        recordPlayerAndSession();
         int highestScore = loadHighScore();
 
         int choice = JOptionPane.showOptionDialog(
@@ -166,27 +161,76 @@ public class ColorGame extends JFrame {
         startTimer();
     }
 
-    private void recordHighScore() {
-        int highestScore = loadHighScore();
-        if (score > highestScore) {
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter("highest_score.txt"))) {
-                writer.write(String.valueOf(score));
-            } catch (IOException ex) {
-                ex.printStackTrace();
+    private void recordPlayerAndSession() {
+        String playerName = JOptionPane.showInputDialog(this, "Enter your name:");
+        String playerEmail = JOptionPane.showInputDialog(this, "Enter your email:");
+
+        if (playerName == null || playerName.trim().isEmpty()) {
+            playerName = "Anonymous";
+        }
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+            // Insert player details
+            int playerId;
+            String playerQuery = "INSERT INTO players (name, email) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)";
+            try (PreparedStatement ps = conn.prepareStatement(playerQuery, Statement.RETURN_GENERATED_KEYS)) {
+                ps.setString(1, playerName);
+                ps.setString(2, playerEmail);
+                ps.executeUpdate();
+
+                try (ResultSet rs = ps.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        playerId = rs.getInt(1);
+                    } else {
+                        throw new SQLException("Failed to retrieve player ID.");
+                    }
+                }
             }
+
+            // Insert game session
+            String sessionQuery = "INSERT INTO game_sessions (player_id, score, start_time, end_time) VALUES (?, ?, NOW(), NOW())";
+            try (PreparedStatement ps = conn.prepareStatement(sessionQuery)) {
+                ps.setInt(1, playerId);
+                ps.setInt(2, score);
+                ps.executeUpdate();
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
         }
     }
 
     private int loadHighScore() {
-        try (BufferedReader reader = new BufferedReader(new FileReader("highest_score.txt"))) {
-            String data = reader.readLine();
-            if (data != null && !data.isEmpty()) {
-                return Integer.parseInt(data); // Convert string to int
+        int highestScore = 0;
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+            // Use JOIN to fetch player details with their highest score
+            String query = "SELECT MAX(gs.score) FROM game_sessions gs " +
+                           "JOIN players p ON p.id = gs.player_id";
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(query)) {
+                if (rs.next()) {
+                    highestScore = rs.getInt(1);
+                }
             }
-        } catch (IOException | NumberFormatException ex) {
-            // File not found or invalid data like the first time playing the game
+        } catch (SQLException ex) {
+            ex.printStackTrace();
         }
-        return 0;
+        return highestScore;
+    }
+
+    private void updateColorStats(String colorName, boolean correctGuess) {
+        String column = correctGuess ? "correct_guesses" : "incorrect_guesses";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+            String query = "INSERT INTO color_stats (color_name, " + column + ") " +
+                           "VALUES (?, 1) " +
+                           "ON DUPLICATE KEY UPDATE " + column + " = " + column + " + 1";
+            try (PreparedStatement ps = conn.prepareStatement(query)) {
+                ps.setString(1, colorName);
+                ps.executeUpdate();
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+        }
     }
 
     private String getColorHex(String colorName) {
